@@ -1,0 +1,706 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Aventura Rosa</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;800&family=Press+Start+2P&display=swap">
+<style>
+/* Layout: one framed arcade cabinet (HUD, stage, touch pad) centered on a blush page, committed to a single pink look. */
+:root {
+  --bg: #fff1f6;
+  --ink: #3a0f26;
+  --rose: #ff3d8b;
+  --rose-deep: #b3135f;
+  --blush: #ffd3e4;
+  --plum: #5b1a45;
+  --gold: #ffc83d;
+  --font-display: 'Press Start 2P', ui-monospace, 'Courier New', monospace;
+  --font-body: 'Nunito', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+
+html, body { background: var(--bg); }
+body {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.5;
+  padding-block: 20px 28px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  touch-action: manipulation;
+}
+.page { max-width: 960px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+.head { display: flex; flex-direction: column; gap: 6px; }
+.head h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(18px, 5vw, 28px);
+  line-height: 1.3;
+  color: var(--rose-deep);
+  text-wrap: balance;
+}
+.head p { margin: 0; max-width: 62ch; color: var(--plum); }
+.cab { border: 3px solid var(--plum); background: var(--plum); box-shadow: 6px 6px 0 var(--rose-deep); }
+.hud {
+  display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center;
+  padding: 10px 12px; color: var(--blush);
+  font-family: var(--font-display); font-size: 10px; line-height: 1.6;
+  font-variant-numeric: tabular-nums;
+}
+.hud b { color: #fff; font-weight: 400; }
+.hud .hearts { color: var(--rose); letter-spacing: 2px; }
+.hud .sp { flex: 1 1 0; }
+.snd {
+  font: inherit; color: var(--blush); background: transparent;
+  border: 2px solid var(--blush); padding: 4px 8px; cursor: pointer;
+}
+.stage { position: relative; background: #ffd0e3; line-height: 0; }
+canvas { display: block; width: 100%; height: auto; image-rendering: pixelated; }
+.toast {
+  position: absolute; left: 8px; right: 8px; top: 8px;
+  background: rgba(58, 15, 38, .93); color: #fff; border-left: 6px solid var(--rose);
+  padding: 8px 12px; font-size: 14px; font-weight: 700; line-height: 1.35;
+  pointer-events: none;
+}
+.ov {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  background: rgba(58, 15, 38, .76); padding: 12px; line-height: 1.5;
+}
+.card {
+  background: var(--blush); color: var(--ink); border: 3px solid var(--plum);
+  box-shadow: 5px 5px 0 var(--rose-deep);
+  padding: 16px 18px; max-width: 440px; max-height: 100%; overflow: auto;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.card h2 {
+  margin: 0; font-family: var(--font-display); font-weight: 400;
+  font-size: clamp(12px, 3.4vw, 16px); line-height: 1.5; color: var(--rose-deep); text-wrap: balance;
+}
+.card p { margin: 0; font-size: 15px; }
+.card .small { font-size: 13px; color: var(--plum); }
+.btn {
+  align-self: flex-start; font-family: var(--font-display); font-size: 11px;
+  color: #fff; background: var(--rose-deep); border: 3px solid var(--plum);
+  padding: 12px 16px; cursor: pointer; box-shadow: 0 4px 0 var(--plum);
+}
+.btn:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--plum); }
+.btn:focus-visible, .snd:focus-visible, .pb:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+.pad { display: flex; justify-content: space-between; gap: 12px; padding: 12px; background: var(--plum); user-select: none; -webkit-user-select: none; }
+.pad .grp { display: flex; gap: 12px; }
+.pb {
+  width: 76px; height: 64px; display: grid; place-items: center;
+  background: var(--rose); color: #fff; border: 3px solid var(--blush);
+  box-shadow: 0 4px 0 var(--rose-deep); touch-action: none; cursor: pointer; padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+.pb.jump { width: 120px; font-family: var(--font-display); font-size: 11px; }
+.pb.on { transform: translateY(3px); box-shadow: 0 1px 0 var(--rose-deep); background: var(--rose-deep); }
+.pb svg { width: 26px; height: 26px; }
+@media (hover: hover) and (pointer: fine) { .pad { display: none; } }
+.note { margin: 0; font-size: 14px; color: var(--plum); max-width: 70ch; }
+.keys { margin: 0; font-size: 14px; color: var(--plum); }
+
+@media (max-width: 600px) {
+  body { padding-block: 10px 28px; }
+  .head h1 { font-size: 16px; }
+  .head p, .keys { display: none; }
+  .hud { font-size: 8px; gap: 4px 12px; padding: 8px 10px; }
+  .snd { padding: 3px 6px; }
+  .card { padding: 12px 14px; gap: 8px; }
+  .card p { font-size: 13px; }
+  .card .small { display: none; }
+  .btn { font-size: 10px; padding: 10px 14px; }
+}
+@media (hover: none), (pointer: coarse) {
+  body { padding-bottom: calc(112px + env(safe-area-inset-bottom, 0px)); }
+  .pad {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
+    border-top: 3px solid var(--blush);
+    padding: 12px max(16px, env(safe-area-inset-right, 0px)) calc(12px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+  }
+  .stage { touch-action: none; }
+}
+</style>
+
+<div class="page">
+  <div class="head">
+    <h1>Aventura Rosa</h1>
+    <p>Outubro Rosa em forma de jogo. Ajude a Rosa a chegar à mamografia, derrote o Medo, o Mito e o Descaso e aprenda dicas de prevenção pelo caminho.</p>
+  </div>
+
+  <div class="cab">
+    <div class="hud" aria-live="off">
+      <span>FASE <b id="hLevel">1/3</b></span>
+      <span>VIDAS <b class="hearts" id="hLives">♥♥♥</b></span>
+      <span>LAÇOS <b id="hRib">000</b></span>
+      <span>PONTOS <b id="hScore">000000</b></span>
+      <span class="sp"></span>
+      <button class="snd" id="snd" type="button" aria-pressed="false">SOM LIGADO</button>
+    </div>
+    <div class="stage">
+      <canvas id="c" width="640" height="352" aria-label="Jogo de plataforma Aventura Rosa"></canvas>
+      <div class="toast" id="toast" hidden></div>
+      <div class="ov" id="ov">
+        <div class="card">
+          <h2 id="ovT">Aventura Rosa</h2>
+          <div id="ovB"></div>
+          <button class="btn" id="ovBtn" type="button">JOGAR</button>
+        </div>
+      </div>
+    </div>
+    <div class="pad" id="pad">
+      <div class="grp">
+        <button class="pb" id="bl" type="button" aria-label="Andar para a esquerda"><svg viewBox="0 0 24 24" aria-hidden="true"><polygon points="18,3 6,12 18,21" fill="currentColor"/></svg></button>
+        <button class="pb" id="br" type="button" aria-label="Andar para a direita"><svg viewBox="0 0 24 24" aria-hidden="true"><polygon points="6,3 18,12 6,21" fill="currentColor"/></svg></button>
+      </div>
+      <button class="pb jump" id="bj" type="button" aria-label="Pular">PULAR</button>
+    </div>
+  </div>
+
+  <p class="keys">Teclado: setas ou A e D para andar, espaço, seta para cima ou W para pular. Pule em cima dos inimigos e bata nos blocos com ponto de interrogação por baixo.</p>
+  <p class="note">Outubro Rosa é o mês de conscientização sobre a importância do diagnóstico precoce do câncer de mama. Este jogo é informativo e não substitui a orientação de um profissional de saúde.</p>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var TS = 32, VH = 352, ROWS = 11, VW = 640;
+  var canvas = document.getElementById('c');
+  var ctx = canvas.getContext('2d');
+  var toastEl = document.getElementById('toast');
+  var ov = document.getElementById('ov');
+  var ovT = document.getElementById('ovT');
+  var ovB = document.getElementById('ovB');
+  var ovBtn = document.getElementById('ovBtn');
+
+  var TIPS = [
+    'Autoexame: conhecer as próprias mamas ajuda a notar mudanças. Se algo mudar, procure um médico.',
+    'A mamografia ajuda a descobrir o câncer de mama bem no começo.',
+    'Quanto mais cedo o diagnóstico, maiores as chances de cura.',
+    'Nódulo, secreção no mamilo ou mudança na pele da mama? Procure avaliação médica.',
+    'Homens também podem ter câncer de mama. Fique atento.',
+    'Pergunte ao seu médico quando começar a fazer a mamografia.',
+    'Procure uma unidade de saúde e pergunte sobre a mamografia pelo SUS.',
+    'Atividade física regular ajuda a reduzir o risco de câncer de mama.',
+    'Evitar o excesso de álcool e manter um peso saudável também ajuda na prevenção.',
+    'Amamentar, quando possível, é um fator de proteção.',
+    'Tem histórico de câncer na família? Conte isso ao seu médico.',
+    'Compartilhe o que aprendeu: informação salva vidas.'
+  ];
+
+  var ETYPES = [
+    { name: 'Medo', color: '#6a4c93', msg: 'Você derrotou o Medo! Cuidar de você vem primeiro: marque a consulta.' },
+    { name: 'Mito', color: '#3f5c8a', msg: 'Mito derrotado! Nem todo caso tem histórico na família. Faça seus exames.' },
+    { name: 'Descaso', color: '#85604b', msg: 'Descaso derrotado! Adiar o exame não ajuda. Marque hoje.' }
+  ];
+
+  var LEVELS = [
+    {
+      name: 'Campo de Laços', cols: 80, flag: 76,
+      sky: ['#ffc2dc', '#fff3f8'],
+      gaps: [[24, 2], [46, 3]],
+      stairs: [[58, 3]],
+      blocks: [[7, 6, 'B?B?B'], [16, 7, 'BBB'], [28, 6, 'BB?B'], [38, 6, '?'], [40, 7, 'BBB'], [52, 6, 'B?B'], [66, 7, 'BBB']],
+      ribbons: [[7, 5], [9, 5], [17, 6], [24, 7], [25, 7], [29, 5], [31, 5], [41, 6], [47, 7], [48, 7], [49, 7], [53, 5], [60, 5], [63, 5], [67, 6], [72, 8]],
+      enemies: [14, 20, 34, 36, 43, 55, 64, 70],
+      fact: 'Você já sabe: conhecer o próprio corpo ajuda a notar mudanças cedo.'
+    },
+    {
+      name: 'Cidade do Cuidado', cols: 100, flag: 97,
+      sky: ['#ffb8d6', '#fff0f6'],
+      gaps: [[16, 2], [28, 3], [42, 2], [58, 3], [76, 2], [88, 2]],
+      stairs: [[64, 4]],
+      blocks: [[6, 6, 'B?B'], [20, 7, 'BB?B'], [32, 6, 'BBB'], [36, 6, '?'], [46, 7, 'BBB'], [50, 6, 'B?B'], [54, 5, 'BB'], [70, 6, 'B?B'], [80, 6, 'BBB'], [84, 7, 'BB'], [92, 6, 'B?B']],
+      ribbons: [[6, 5], [8, 5], [17, 7], [21, 5], [22, 5], [29, 7], [30, 6], [33, 5], [34, 5], [43, 7], [47, 6], [51, 5], [55, 4], [59, 7], [60, 7], [77, 7], [89, 7], [93, 5]],
+      enemies: [10, 22, 34, 39, 46, 53, 70, 73, 81, 93],
+      fact: 'Mamografia e consulta médica fazem parte do cuidado. Pergunte quando começar.'
+    },
+    {
+      name: 'Caminho da Mamografia', cols: 120, flag: 116,
+      sky: ['#ffadd0', '#ffeef5'],
+      gaps: [[14, 3], [26, 2], [38, 3], [52, 2], [64, 3], [78, 3], [92, 2], [104, 3]],
+      stairs: [[44, 3], [84, 4]],
+      blocks: [[6, 6, 'B?B'], [15, 7, 'B'], [20, 6, 'B?B'], [30, 7, 'BB'], [34, 6, '?B'], [40, 5, 'BBB'], [48, 6, 'B?B'], [55, 6, 'BBB'], [58, 5, '?'], [66, 7, 'BB'], [70, 6, 'B?B'], [80, 7, 'B'], [96, 6, 'BB?'], [100, 7, 'BBB'], [106, 6, 'B'], [110, 6, 'B?B']],
+      ribbons: [[6, 5], [8, 5], [15, 6], [21, 5], [27, 7], [31, 6], [35, 5], [41, 4], [42, 4], [43, 4], [49, 5], [53, 7], [56, 5], [58, 4], [65, 7], [67, 6], [71, 5], [79, 7], [85, 5], [87, 4], [93, 7], [97, 5], [105, 7], [106, 5], [111, 5], [114, 8]],
+      enemies: [9, 21, 31, 36, 42, 49, 57, 61, 69, 74, 83, 90, 98, 101, 109, 113],
+      fact: ''
+    }
+  ];
+
+  // ---------- state ----------
+  var state = 'title';
+  var levelIdx = 0, lives = 3, ribbonCount = 0, ribbonLevel = 0, score = 0;
+  var grid, cols, qtip, ribbons, enemies, flagX, lvl, bounce = {};
+  var seenType = {};
+  var cam = 0, frame = 0, cp = { x: 64, y: 0 };
+  var muted = false;
+  var P = { x: 64, y: 0, w: 22, h: 30, vx: 0, vy: 0, dir: 1, onGround: false, coyote: 0, jbuf: 0, inv: 0 };
+  var keys = { left: false, right: false, jump: false, jumpPressed: false };
+
+  // ---------- helpers ----------
+  var tt = 0;
+  function toast(text, ms) {
+    toastEl.textContent = text;
+    toastEl.hidden = false;
+    clearTimeout(tt);
+    tt = setTimeout(function () { toastEl.hidden = true; }, ms || 4200);
+  }
+  function pad(n, l) { var s = String(n); while (s.length < l) s = '0' + s; return s; }
+  function hud() {
+    var h = '';
+    for (var i = 0; i < lives; i++) h += '♥';
+    document.getElementById('hLives').textContent = h || '-';
+    document.getElementById('hRib').textContent = pad(ribbonCount, 3);
+    document.getElementById('hScore').textContent = pad(score, 6);
+    document.getElementById('hLevel').textContent = (levelIdx + 1) + '/' + LEVELS.length;
+  }
+  var ac = null;
+  function sfx(t) {
+    if (muted) return;
+    try {
+      if (!ac) ac = new (window.AudioContext || window.webkitAudioContext)();
+      if (ac.state === 'suspended') ac.resume();
+      var table = { jump: [330, 620], coin: [880, 1320], stomp: [240, 120], hurt: [220, 70], block: [520, 780], win: [523, 1046] };
+      var f = table[t] || [440, 440];
+      var o = ac.createOscillator(), g = ac.createGain(), now = ac.currentTime;
+      o.type = 'square';
+      o.frequency.setValueAtTime(f[0], now);
+      o.frequency.exponentialRampToValueAtTime(f[1], now + 0.12);
+      g.gain.setValueAtTime(0.05, now);
+      g.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+      o.connect(g); g.connect(ac.destination);
+      o.start(now); o.stop(now + 0.16);
+    } catch (e) { /* audio is optional */ }
+  }
+
+  // ---------- level building ----------
+  function build(i) {
+    lvl = LEVELS[i]; cols = lvl.cols; grid = [];
+    var r, x, j, h, k;
+    for (r = 0; r < ROWS; r++) { var row = []; for (x = 0; x < cols; x++) row.push('.'); grid.push(row); }
+    for (x = 0; x < cols; x++) {
+      var hole = false;
+      for (j = 0; j < lvl.gaps.length; j++) { if (x >= lvl.gaps[j][0] && x < lvl.gaps[j][0] + lvl.gaps[j][1]) hole = true; }
+      if (!hole) { grid[9][x] = '#'; grid[10][x] = '#'; }
+    }
+    (lvl.stairs || []).forEach(function (s) {
+      for (j = 0; j < s[1]; j++) { for (h = 0; h <= j; h++) grid[8 - h][s[0] + j] = '#'; }
+    });
+    qtip = {}; bounce = {};
+    var tipN = i * 5;
+    lvl.blocks.forEach(function (b) {
+      for (k = 0; k < b[2].length; k++) {
+        var ch = b[2].charAt(k);
+        if (ch === '.') continue;
+        grid[b[1]][b[0] + k] = ch;
+        if (ch === '?') { qtip[(b[0] + k) + ',' + b[1]] = TIPS[tipN % TIPS.length]; tipN++; }
+      }
+    });
+    ribbons = lvl.ribbons.map(function (q) { return { x: q[0] * TS + 8, y: q[1] * TS + 8, s: 16, got: false }; });
+    enemies = lvl.enemies.map(function (ex, n) {
+      return { x: ex * TS + 3, y: 9 * TS - 24, w: 26, h: 24, vx: (n % 2 ? 0.7 : -0.7), alive: true, dead: 0, type: n % 3 };
+    });
+    flagX = lvl.flag * TS;
+  }
+  function solid(tx, ty) {
+    if (tx < 0 || tx >= cols) return true;
+    if (ty < 0 || ty >= ROWS) return false;
+    var c = grid[ty][tx];
+    return c === '#' || c === 'B' || c === '?' || c === 'U';
+  }
+  function loadLevel(i) {
+    levelIdx = i; ribbonLevel = 0;
+    build(i);
+    P.x = 2 * TS; P.y = 9 * TS - P.h; P.vx = 0; P.vy = 0; P.dir = 1; P.inv = 60; P.onGround = true;
+    cp = { x: P.x, y: P.y };
+    cam = 0;
+    hud();
+    state = 'play';
+    toast('Fase ' + (i + 1) + ': ' + lvl.name, 2600);
+  }
+
+  // ---------- overlay ----------
+  var ovCb = null;
+  function showOv(title, html, btn, cb) {
+    ovT.textContent = title;
+    ovB.innerHTML = html;
+    ovBtn.textContent = btn;
+    ovCb = cb;
+    ov.hidden = false;
+  }
+  ovBtn.addEventListener('click', function () {
+    ovBtn.blur();
+    if (ovCb) { var f = ovCb; ovCb = null; ov.hidden = true; f(); }
+  });
+
+  function startGame() {
+    lives = 3; ribbonCount = 0; score = 0; seenType = {};
+    loadLevel(0);
+  }
+  function showTitle() {
+    state = 'title';
+    showOv('Aventura Rosa',
+      '<p>A Rosa precisa chegar à mamografia. Pule nos inimigos <b>Medo</b>, <b>Mito</b> e <b>Descaso</b>, colete laços rosa e bata nos blocos <b>?</b> por baixo para ler dicas de prevenção.</p>',
+      'JOGAR', startGame);
+  }
+  function gameOver() {
+    state = 'over';
+    showOv('Fim de jogo',
+      '<p>Você coletou ' + ribbonCount + ' laços e fez ' + score + ' pontos.</p><p class="small">Cuidar da saúde também pede persistência. Quer tentar de novo?</p>',
+      'TENTAR DE NOVO', startGame);
+  }
+  function levelDone() {
+    sfx('win');
+    score += 500; hud();
+    if (levelIdx < LEVELS.length - 1) {
+      state = 'levelEnd';
+      showOv('Fase ' + (levelIdx + 1) + ' concluída!',
+        '<p>Laços nesta fase: ' + ribbonLevel + ' de ' + lvl.ribbons.length + '.</p><p>' + lvl.fact + '</p>',
+        'PRÓXIMA FASE', function () { loadLevel(levelIdx + 1); });
+    } else {
+      state = 'win';
+      showOv('Você chegou à mamografia!',
+        '<p>Parabéns! Você fez ' + score + ' pontos e coletou ' + ribbonCount + ' laços.</p><p>Na vida real, o caminho é este: conheça seu corpo, converse com seu médico e faça seus exames. O diagnóstico precoce aumenta as chances de cura.</p><p class="small">Marque sua consulta e compartilhe este jogo com quem você quer bem.</p>',
+        'JOGAR DE NOVO', startGame);
+    }
+  }
+
+  // ---------- gameplay ----------
+  function addRibbon() {
+    ribbonCount++; ribbonLevel++; score += 10;
+    if (ribbonCount % 20 === 0 && lives < 5) { lives++; toast('Vida extra! Você coletou ' + ribbonCount + ' laços.', 2600); }
+    hud();
+  }
+  function hitBlock(tx, ty) {
+    if (grid[ty][tx] !== '?') return;
+    grid[ty][tx] = 'U';
+    bounce[tx + ',' + ty] = 10;
+    addRibbon(); sfx('block');
+    toast(qtip[tx + ',' + ty] || TIPS[0], 5200);
+  }
+  function respawn() {
+    P.x = cp.x; P.y = cp.y; P.vx = 0; P.vy = 0; P.inv = 120;
+  }
+  function loseLife(pit) {
+    lives--; sfx('hurt'); hud();
+    if (lives <= 0) { gameOver(); return; }
+    if (pit) respawn();
+    else { P.inv = 120; P.vy = -6; P.vx = -P.dir * 3; }
+  }
+  function updatePlayer() {
+    var p = P, i, tx, ty;
+    var dir = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
+    if (dir) {
+      p.vx += dir * 0.35; p.dir = dir;
+      if (Math.abs(p.vx) > 3) p.vx = dir * 3;
+    } else if (p.vx > 0) p.vx = Math.max(0, p.vx - 0.3);
+    else if (p.vx < 0) p.vx = Math.min(0, p.vx + 0.3);
+
+    if (keys.jumpPressed) { p.jbuf = 7; keys.jumpPressed = false; }
+    if (p.jbuf > 0) p.jbuf--;
+    if (p.onGround) p.coyote = 6; else if (p.coyote > 0) p.coyote--;
+    if (p.jbuf > 0 && p.coyote > 0) {
+      p.vy = -10.6; p.onGround = false; p.coyote = 0; p.jbuf = 0; sfx('jump');
+    }
+    if (!keys.jump && p.vy < -3.5) p.vy *= 0.6;
+    p.vy = Math.min(p.vy + 0.5, 11);
+
+    p.x += p.vx;
+    var top = Math.floor(p.y / TS), bot = Math.floor((p.y + p.h - 1) / TS);
+    if (p.vx > 0) {
+      tx = Math.floor((p.x + p.w) / TS);
+      for (ty = top; ty <= bot; ty++) { if (solid(tx, ty)) { p.x = tx * TS - p.w; p.vx = 0; break; } }
+    } else if (p.vx < 0) {
+      tx = Math.floor(p.x / TS);
+      for (ty = top; ty <= bot; ty++) { if (solid(tx, ty)) { p.x = (tx + 1) * TS; p.vx = 0; break; } }
+    }
+
+    p.y += p.vy; p.onGround = false;
+    var l = Math.floor(p.x / TS), r = Math.floor((p.x + p.w - 1) / TS);
+    if (p.vy > 0) {
+      ty = Math.floor((p.y + p.h) / TS);
+      for (tx = l; tx <= r; tx++) { if (solid(tx, ty)) { p.y = ty * TS - p.h; p.vy = 0; p.onGround = true; break; } }
+    } else if (p.vy < 0) {
+      ty = Math.floor(p.y / TS);
+      var hit = -1, cx = Math.floor((p.x + p.w / 2) / TS);
+      if (solid(cx, ty)) hit = cx;
+      else { for (tx = l; tx <= r; tx++) { if (solid(tx, ty)) { hit = tx; break; } } }
+      if (hit >= 0) { p.y = (ty + 1) * TS; p.vy = 0; hitBlock(hit, ty); }
+    }
+    if (p.inv > 0) p.inv--;
+    if (p.y > VH + 40) { loseLife(true); return; }
+
+    if (p.onGround && Math.abs(p.y + p.h - 9 * TS) < 1 && p.x - cp.x > 500 &&
+        solid(Math.floor(p.x / TS), 9) && solid(Math.floor((p.x + p.w - 1) / TS), 9)) {
+      cp = { x: p.x, y: p.y };
+    }
+    for (i = 0; i < ribbons.length; i++) {
+      var q = ribbons[i];
+      if (!q.got && p.x < q.x + q.s && p.x + p.w > q.x && p.y < q.y + q.s && p.y + p.h > q.y) {
+        q.got = true; addRibbon(); sfx('coin');
+      }
+    }
+    if (p.x + p.w > flagX + 8) levelDone();
+  }
+  function updateEnemies() {
+    var p = P;
+    for (var i = 0; i < enemies.length; i++) {
+      var e = enemies[i];
+      if (!e.alive) { if (e.dead > 0) e.dead--; continue; }
+      e.x += e.vx;
+      var fx = e.vx > 0 ? e.x + e.w : e.x;
+      var wall = solid(Math.floor(fx / TS), Math.floor((e.y + e.h / 2) / TS));
+      var ledge = !solid(Math.floor((fx + (e.vx > 0 ? 2 : -2)) / TS), Math.floor((e.y + e.h + 2) / TS));
+      if (wall || ledge) { e.x -= e.vx; e.vx = -e.vx; }
+      if (state !== 'play') return;
+      if (p.x < e.x + e.w && p.x + p.w > e.x && p.y < e.y + e.h && p.y + p.h > e.y) {
+        if (p.vy > 0.5 && (p.y + p.h) - e.y < 18) {
+          e.alive = false; e.dead = 24;
+          p.vy = keys.jump ? -9 : -6.5;
+          score += 100; hud(); sfx('stomp');
+          if (!seenType[e.type]) { seenType[e.type] = true; toast(ETYPES[e.type].msg, 4600); }
+        } else if (p.inv <= 0) {
+          loseLife(false);
+          if (state !== 'play') return;
+        }
+      }
+    }
+  }
+  function step() {
+    frame++;
+    if (state !== 'play') return;
+    updatePlayer();
+    if (state !== 'play') return;
+    updateEnemies();
+    for (var k in bounce) { if (bounce[k] > 0) bounce[k]--; }
+    var target = P.x + P.w / 2 - VW * 0.45;
+    cam = Math.max(0, Math.min(cols * TS - VW, target));
+  }
+
+  // ---------- drawing ----------
+  function ribbonShape(cx, y, s, color, w) {
+    ctx.strokeStyle = color; ctx.lineWidth = w; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.arc(cx, y + s * 0.28, s * 0.22, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx - s * 0.1, y + s * 0.46); ctx.lineTo(cx - s * 0.28, y + s * 0.95);
+    ctx.moveTo(cx + s * 0.1, y + s * 0.46); ctx.lineTo(cx + s * 0.28, y + s * 0.95);
+    ctx.stroke();
+  }
+  function drawRibbon(x, y, s) {
+    var cx = x + s / 2;
+    ribbonShape(cx, y, s, '#ffffff', s * 0.34);
+    ribbonShape(cx, y, s, '#ff1f7a', s * 0.2);
+  }
+  function cloud(x, y) {
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.beginPath(); ctx.ellipse(x, y, 30, 12, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(x + 20, y - 8, 20, 12, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(x - 18, y - 5, 16, 10, 0, 0, Math.PI * 2); ctx.fill();
+  }
+  function drawBackground() {
+    var g = ctx.createLinearGradient(0, 0, 0, VH);
+    g.addColorStop(0, lvl.sky[0]); g.addColorStop(1, lvl.sky[1]);
+    ctx.fillStyle = g; ctx.fillRect(0, 0, VW, VH);
+    ctx.fillStyle = 'rgba(255,244,190,0.55)';
+    ctx.beginPath(); ctx.arc(VW - 80, 60, 40, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#fff2b8';
+    ctx.beginPath(); ctx.arc(VW - 80, 60, 28, 0, Math.PI * 2); ctx.fill();
+    var i, k;
+    for (i = 0; i < 9; i++) {
+      var cx = (((i * 230 - cam * 0.3) % 1800) + 1800) % 1800 - 120;
+      cloud(cx, 40 + (i % 3) * 34);
+    }
+    var layers = [{ f: 0.5, c: '#ffb3d1', w: 180, base: 80 }, { f: 0.7, c: '#ff97c0', w: 150, base: 54 }];
+    layers.forEach(function (L) {
+      var off = cam * L.f, first = Math.floor(off / L.w) - 1;
+      ctx.fillStyle = L.c;
+      for (k = first; k * L.w - off < VW + L.w; k++) {
+        var hh = L.base + (((k % 3) + 3) % 3) * 18;
+        ctx.beginPath();
+        ctx.ellipse(k * L.w - off + L.w / 2, 9 * TS, L.w * 0.62, hh, 0, Math.PI, 0);
+        ctx.fill();
+      }
+    });
+  }
+  function drawTiles() {
+    var c0 = Math.floor(cam / TS), c1 = Math.min(cols - 1, Math.floor((cam + VW) / TS));
+    var camR = Math.round(cam);
+    for (var ty = 0; ty < ROWS; ty++) {
+      for (var tx = c0; tx <= c1; tx++) {
+        var c = grid[ty][tx];
+        if (c === '.') continue;
+        var x = tx * TS - camR, y = ty * TS;
+        var b = bounce[tx + ',' + ty];
+        if (b > 0) y -= Math.round(Math.sin((b / 10) * Math.PI) * 7);
+        if (c === '#') {
+          ctx.fillStyle = ty === 9 ? '#a22468' : '#8e1e57'; ctx.fillRect(x, y, TS, TS);
+          ctx.fillStyle = '#b52e77'; ctx.fillRect(x + 6, y + 14, 4, 4); ctx.fillRect(x + 20, y + 22, 4, 4);
+          if (!solid(tx, ty - 1) || ty === 9) {
+            ctx.fillStyle = '#ff5c9c'; ctx.fillRect(x, y, TS, 9);
+            ctx.fillStyle = '#ff94bd'; ctx.fillRect(x, y, TS, 3);
+          }
+        } else if (c === 'B') {
+          ctx.fillStyle = '#f78fb8'; ctx.fillRect(x, y, TS, TS);
+          ctx.fillStyle = '#c2467f';
+          ctx.fillRect(x, y + 15, TS, 2); ctx.fillRect(x, y + 30, TS, 2);
+          ctx.fillRect(x + 15, y, 2, 15); ctx.fillRect(x + 7, y + 17, 2, 13); ctx.fillRect(x + 23, y + 17, 2, 13);
+          ctx.fillStyle = '#ffc3da'; ctx.fillRect(x, y, TS, 2);
+        } else {
+          var used = c === 'U';
+          ctx.fillStyle = used ? '#c9a0b5' : '#ffc83d'; ctx.fillRect(x, y, TS, TS);
+          ctx.fillStyle = used ? '#8c6580' : '#b3730f';
+          ctx.fillRect(x, y, TS, 2); ctx.fillRect(x, y + 30, TS, 2); ctx.fillRect(x, y, 2, TS); ctx.fillRect(x + 30, y, 2, TS);
+          if (!used) {
+            ctx.font = 'bold 20px monospace'; ctx.textAlign = 'center'; ctx.fillStyle = '#7a3b00';
+            ctx.fillText('?', x + 16, y + 23);
+          }
+        }
+      }
+    }
+  }
+  function drawFlag() {
+    var x = Math.round(flagX - cam);
+    if (x < -80 || x > VW + 80) return;
+    var base = 9 * TS;
+    ctx.fillStyle = '#5b1a45'; ctx.fillRect(x + 14, base - 170, 4, 170);
+    ctx.fillStyle = '#ffc83d'; ctx.beginPath(); ctx.arc(x + 16, base - 172, 6, 0, Math.PI * 2); ctx.fill();
+    drawRibbon(x - 6, base - 168, 44);
+    ctx.fillStyle = '#5b1a45'; ctx.fillRect(x - 24, base - 40, 80, 20);
+    ctx.fillStyle = '#ffd3e4'; ctx.font = 'bold 9px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('MAMOGRAFIA', x + 16, base - 26);
+  }
+  function drawEnemy(e) {
+    var x = Math.round(e.x - cam), y = Math.round(e.y), t = ETYPES[e.type];
+    if (x < -40 || x > VW + 40) return;
+    ctx.fillStyle = t.color;
+    if (!e.alive) {
+      if (e.dead <= 0) return;
+      ctx.fillRect(x, y + e.h - 8, e.w, 8);
+      ctx.fillStyle = '#fff'; ctx.fillRect(x + 6, y + e.h - 6, 3, 2); ctx.fillRect(x + e.w - 9, y + e.h - 6, 3, 2);
+      return;
+    }
+    var wob = Math.floor(frame / 8) % 2;
+    ctx.beginPath(); ctx.ellipse(x + e.w / 2, y + e.h / 2 - 1, e.w / 2, e.h / 2 - 1, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#2b1030';
+    ctx.fillRect(x + 2, y + e.h - 4, 9, wob ? 4 : 2); ctx.fillRect(x + e.w - 11, y + e.h - 4, 9, wob ? 2 : 4);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(x + 5, y + 7, 6, 6); ctx.fillRect(x + e.w - 11, y + 7, 6, 6);
+    ctx.fillStyle = '#1d0a22';
+    var px = e.vx > 0 ? 3 : 0;
+    ctx.fillRect(x + 6 + px, y + 9, 3, 4); ctx.fillRect(x + e.w - 10 + px, y + 9, 3, 4);
+    ctx.fillRect(x + 4, y + 5, 8, 2); ctx.fillRect(x + e.w - 12, y + 5, 8, 2);
+  }
+  function drawPlayer() {
+    var p = P;
+    if (p.inv > 0 && Math.floor(p.inv / 4) % 2 === 0) return;
+    ctx.save();
+    ctx.translate(Math.round(p.x - cam + p.w / 2), Math.round(p.y));
+    if (p.dir < 0) ctx.scale(-1, 1);
+    var step = p.onGround && Math.abs(p.vx) > 0.3 ? Math.floor(frame / 6) % 2 : 0;
+    ctx.fillStyle = '#5a2a45';
+    ctx.fillRect(-7, 24, 6, step ? 4 : 6); ctx.fillRect(1, 24, 6, step ? 6 : 4);
+    ctx.fillStyle = '#ff4f9a'; ctx.fillRect(-9, 13, 18, 12);
+    ctx.fillStyle = '#e03885'; ctx.fillRect(-9, 22, 18, 3);
+    ctx.fillStyle = '#ffd2b3'; ctx.fillRect(-11, 14, 3, 8); ctx.fillRect(8, 14, 3, 8);
+    ctx.fillRect(-7, 3, 14, 11);
+    ctx.fillStyle = '#4a2b1a'; ctx.fillRect(-8, 0, 16, 5); ctx.fillRect(-8, 0, 3, 13);
+    ctx.fillStyle = '#2a1020'; ctx.fillRect(2, 8, 2, 3);
+    ctx.fillStyle = '#ff1f7a'; ctx.fillRect(-5, -3, 5, 5); ctx.fillRect(2, -3, 5, 5);
+    ctx.fillStyle = '#fff'; ctx.fillRect(-1, -1, 3, 3);
+    ctx.restore();
+  }
+  function draw() {
+    if (!lvl) { lvl = LEVELS[0]; }
+    drawBackground();
+    if (!grid) return;
+    drawTiles();
+    var i;
+    for (i = 0; i < ribbons.length; i++) {
+      var q = ribbons[i];
+      if (q.got) continue;
+      var sx = Math.round(q.x - cam);
+      if (sx < -30 || sx > VW + 30) continue;
+      drawRibbon(sx, Math.round(q.y + Math.sin(frame / 12 + q.x) * 3), q.s);
+    }
+    drawFlag();
+    for (i = 0; i < enemies.length; i++) drawEnemy(enemies[i]);
+    drawPlayer();
+  }
+
+  // ---------- input ----------
+  function setKey(name, on) {
+    if (name === 'jump') { if (on && !keys.jump) keys.jumpPressed = true; keys.jump = on; }
+    else keys[name] = on;
+  }
+  var KEYMAP = { ArrowLeft: 'left', a: 'left', A: 'left', ArrowRight: 'right', d: 'right', D: 'right', ArrowUp: 'jump', w: 'jump', W: 'jump', ' ': 'jump', z: 'jump', Z: 'jump' };
+  window.addEventListener('keydown', function (e) {
+    if (!ov.hidden && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); ovBtn.click(); return; }
+    var k = KEYMAP[e.key];
+    if (!k) return;
+    e.preventDefault();
+    setKey(k, true);
+  });
+  window.addEventListener('keyup', function (e) {
+    var k = KEYMAP[e.key];
+    if (!k) return;
+    e.preventDefault();
+    setKey(k, false);
+  });
+  window.addEventListener('blur', function () { keys.left = keys.right = keys.jump = false; });
+  function bindPad(id, name) {
+    var b = document.getElementById(id);
+    function on(e) { e.preventDefault(); b.classList.add('on'); setKey(name, true); }
+    function off(e) { e.preventDefault(); b.classList.remove('on'); setKey(name, false); }
+    b.addEventListener('pointerdown', on);
+    b.addEventListener('pointerup', off);
+    b.addEventListener('pointercancel', off);
+    b.addEventListener('pointerleave', off);
+    b.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+  }
+  bindPad('bl', 'left'); bindPad('br', 'right'); bindPad('bj', 'jump');
+  document.getElementById('snd').addEventListener('click', function () {
+    muted = !muted;
+    this.textContent = muted ? 'SOM DESLIGADO' : 'SOM LIGADO';
+    this.setAttribute('aria-pressed', muted ? 'true' : 'false');
+  });
+
+  // ---------- sizing and loop ----------
+  function fit() {
+    var w = window.innerWidth < 600 ? 416 : 640;
+    if (w !== VW || canvas.width !== w) { VW = w; }
+    if (canvas.width !== VW || canvas.height !== VH) {
+      canvas.width = VW; canvas.height = VH;
+      canvas.style.aspectRatio = VW + ' / ' + VH;
+    }
+    ctx.imageSmoothingEnabled = false;
+  }
+  window.addEventListener('resize', fit);
+
+  var last = 0, acc = 0;
+  function loop(t) {
+    requestAnimationFrame(loop);
+    if (!last) last = t;
+    var dt = t - last; last = t;
+    if (dt > 100) dt = 100;
+    acc += dt;
+    while (acc >= 16.667) { step(); acc -= 16.667; }
+    draw();
+  }
+
+  fit();
+  build(0);
+  hud();
+  showTitle();
+  requestAnimationFrame(loop);
+})();
+</script>
+
+</body>
+</html>
